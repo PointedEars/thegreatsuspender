@@ -47,9 +47,11 @@
             messageEl = document.getElementById('suspendedMsg'),
             titleEl = document.getElementById('gsTitle'),
             topBarEl = document.getElementById('gsTopBarTitle'),
-            reloadEl = document.getElementById('gsReloadLink'),
-            whitelistEl = document.getElementById('gsWhitelistLink'),
-            topBarImgEl = document.getElementById('gsTopBarImg');
+            topBarImgEl = document.getElementById('gsTopBarImg'),
+            whitelistSiteEl = document.getElementById('whitelistSite'),
+            whitelistPageEl = document.getElementById('whitelistPage'),
+            whitelistTempEl = document.getElementById('whitelistTemporary'),
+            confirmWhitelistBtnEl = document.getElementById('confirmWhitelistBtn');
 
         //try to fetch saved tab information for this url
         gsUtils.fetchTabInfo(url).then(function(tabProperties) {
@@ -108,9 +110,13 @@
             topBarEl.setAttribute('href', url);
             topBarImgEl.setAttribute('src', favicon);
 
-            whitelistEl.setAttribute('data-root-url', rootUrlStr);
-            whitelistEl.setAttribute('data-full-url', fullUrlStr);
-            reloadEl.setAttribute('href', url);
+            //populate modal
+            confirmWhitelistBtnEl.setAttribute('data-root-url', rootUrlStr);
+            confirmWhitelistBtnEl.setAttribute('data-full-url', fullUrlStr);
+            console.log(rootUrlStr);
+            console.log(fullUrlStr);
+            //whitelistSiteEl.innerHTML = rootUrlStr;
+            //whitelistPageEl.innerHTML = fullUrlStr;
         });
     }
 
@@ -118,33 +124,52 @@
         var url = gsUtils.getSuspendedUrl(window.location.href);
         chrome.extension.getBackgroundPage().tgs.scrollPosByTabId[tabId] = gsUtils.getSuspendedScrollPosition(window.location.href);
         document.getElementById('suspendedMsg').innerHTML = "";
-        document.getElementById('refreshSpinner').classList.add('spinner')
+        document.getElementById('refreshSpinner').classList.add('spinner');
         window.location.replace(url);
     }
 
-    function saveToWhitelist(e) {
-        var fullUrl = e.target.getAttribute('data-full-url');
-        var rootUrl = e.target.getAttribute('data-root-url');
-        console.log(rootUrl);
-        console.log(fullUrl);
-        var whitelistText = window.prompt('Enter string to add to whitelist:', fullUrl);
-        if (whitelistText) {
-            gsUtils.saveToWhitelist(whitelistText);
-            unsuspendTab();
+    function whitelistTab() {
+        var confirmWhitelistBtnEl = document.getElementById('confirmWhitelistBtn');
+        var whitelistSiteEl = document.getElementById('whitelistSite');
+        var whitelistPageEl = document.getElementById('whitelistPage');
+        var whitelistTempEl = document.getElementById('whitelistTemporary');
+
+        var rootUrlStr = confirmWhitelistBtnEl.getAttribute('data-root-url');
+        var fullUrlStr = confirmWhitelistBtnEl.getAttribute('data-full-url');
+
+        if (whitelistSiteEl.checked && rootUrlStr) {
+            gsUtils.saveToWhitelist(rootUrlStr);
+        } else if (whitelistPageEl.checked && fullUrlStr) {
+            gsUtils.saveToWhitelist(fullUrlStr);
+        } else {
+            // not implemented yet
         }
+
+        toggleModal(false);
+        unsuspendTab();
+    }
+
+    function toggleModal(visible) {
+        var modalEl = document.getElementById('whitelistOptionsModal');
+        modalEl.style.display = visible ? "block" : "none";
     }
 
     window.onload = function () {
 
-        document.getElementById('suspendedMsg').onclick = unsuspendTab;
-        document.getElementById('gsWhitelistLink').onclick = saveToWhitelist;
+        var suspendedMsgEl = document.getElementById('suspendedMsg');
+        var reloadLinkEl = document.getElementById('gsReloadLink');
+        var showWhitelistModalEl = document.getElementById('gsWhitelistLink');
+        var confirmWhitelistBtnEl = document.getElementById('confirmWhitelistBtn');
+        var modalEl = document.getElementById('whitelistOptionsModal');
+        var closeLinkEls = document.querySelectorAll('.close');
 
         //try to suspend tab
         attemptTabSuspend();
 
         //set theme
         if (gsUtils.getOption(gsUtils.THEME) === 'dark') {
-            document.querySelector('body').className = 'dark';
+            var body = document.querySelector('body');
+            body.className += ' dark';
         }
 
         //add an unload listener to send an unsuspend request on page unload
@@ -154,6 +179,28 @@
                 action: 'requestUnsuspendTab'
             });
         });
+
+        //click listeners
+        suspendedMsgEl.onclick = unsuspendTab;
+        reloadLinkEl.onclick = unsuspendTab;
+        confirmWhitelistBtnEl.onclick = whitelistTab;
+
+        showWhitelistModalEl.onclick = function() {
+            toggleModal(true);
+        }
+
+        Array.from(closeLinkEls).forEach(function(link) {
+            link.addEventListener('click', function(event) {
+                toggleModal(false);
+            });
+        });
+
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function(event) {
+            if (event.target == modalEl) {
+                toggleModal(false);
+            }
+        }
 
         //show dude and donate link (randomly 1 of 20 times)
         if (!gsUtils.getOption(gsUtils.NO_NAG) && Math.random() > 0.97) {
